@@ -863,6 +863,10 @@ class APIGatewayDeployer(object):
                         rest_api_id, function['arn'], str(uuid.uuid4()))
 
 
+class CustomDomainNameDeployer(object):
+
+
+
 class ApplicationPolicyHandler(object):
     """Manages the IAM policy for an application.
 
