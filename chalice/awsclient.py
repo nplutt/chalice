@@ -365,7 +365,7 @@ class TypedAWSClient(object):
             body=json.dumps(swagger_document, indent=2))
 
     def update_rest_api(self, rest_api_id, patch_operations):
-        # type: (str, [Dict]) -> None
+        # type: (str, List[Dict]) -> None
         client = self._client('apigateway')
         client.update_rest_api(
             restApiId=rest_api_id,
