@@ -350,6 +350,31 @@ def test_validation_error_if_no_role_provided_when_manage_false(sample_app):
         validate_configuration(config)
 
 
+def test_validation_error_if_minimum_compression_size_not_int(sample_app):
+    config = Config.create(chalice_app=sample_app,
+                           minimum_compression_size='not int')
+    with pytest.raises(ValueError):
+        validate_configuration(config)
+
+
+def test_validation_error_if_minimum_compression_size_invalid_int(sample_app):
+    config = Config.create(chalice_app=sample_app,
+                           minimum_compression_size=-1)
+    with pytest.raises(ValueError):
+        validate_configuration(config)
+
+    config = Config.create(chalice_app=sample_app,
+                           minimum_compression_size=10485761)
+    with pytest.raises(ValueError):
+        validate_configuration(config)
+
+
+def test_valid_minimum_compression_size(sample_app):
+    config = Config.create(chalice_app=sample_app,
+                           minimum_compression_size=1)
+    assert validate_configuration(config) is None
+
+
 def test_validate_unique_lambda_function_names(sample_app):
     @sample_app.lambda_function()
     def foo(event, context):
