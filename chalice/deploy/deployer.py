@@ -35,6 +35,7 @@ from chalice.constants import DEFAULT_STAGE_NAME, LAMBDA_TRUST_POLICY
 from chalice.constants import DEFAULT_LAMBDA_TIMEOUT
 from chalice.constants import DEFAULT_LAMBDA_MEMORY_SIZE
 from chalice.constants import MAX_LAMBDA_DEPLOYMENT_SIZE
+from chalice.constants import MIN_COMPRESSION_SIZE, MAX_COMPRESSION_SIZE
 from chalice.policy import AppPolicyGenerator
 
 
@@ -83,6 +84,7 @@ def validate_configuration(config):
     routes = config.chalice_app.routes
     validate_routes(routes)
     validate_route_content_types(routes, config.chalice_app.api.binary_types)
+    validate_minimum_compression_size(config)
     _validate_manage_iam_role(config)
     validate_python_version(config)
     validate_unique_function_names(config)
@@ -177,6 +179,18 @@ def _validate_cors_for_route(route_url, route_methods):
                 "Please ensure all views for \"%s\" that have CORS configured "
                 "have the same CORS configuration." % route_url
             )
+
+
+def validate_minimum_compression_size(config):
+    # type: (Config) -> None
+    if config.minimum_compression_size:
+        if not isinstance(config.minimum_compression_size, int):
+            raise ValueError("'minimum_compression_size' must be an int.")
+        elif config.minimum_compression_size < MIN_COMPRESSION_SIZE \
+                or config.minimum_compression_size > MAX_COMPRESSION_SIZE:
+            raise ValueError("'minimum_compression_size must be equal to or"
+                             "greater than %s and less than or equal to %s."
+                             % (MIN_COMPRESSION_SIZE, MAX_COMPRESSION_SIZE))
 
 
 def _validate_manage_iam_role(config):
@@ -818,8 +832,10 @@ class APIGatewayDeployer(object):
         # information into the swagger generator.
         rest_api_id = self._aws_client.import_rest_api(swagger_doc)
         api_gateway_stage = config.api_gateway_stage
-        self._deploy_api_to_stage(rest_api_id, api_gateway_stage,
-                                  deployed_resources)
+        minimum_compression_size = config.minimum_compression_size
+        self._deploy_api_to_stage(
+            rest_api_id, api_gateway_stage,
+            minimum_compression_size, deployed_resources)
         return rest_api_id, self._aws_client.region_name, api_gateway_stage
 
     def _create_resources_for_api(self, config, rest_api_id,
@@ -831,14 +847,15 @@ class APIGatewayDeployer(object):
         swagger_doc = generator.generate_swagger(config.chalice_app)
         self._aws_client.update_api_from_swagger(rest_api_id, swagger_doc)
         api_gateway_stage = config.api_gateway_stage
+        minimum_compression_size = config.minimum_compression_size
         self._deploy_api_to_stage(
             rest_api_id, api_gateway_stage,
-            deployed_resources)
+            minimum_compression_size, deployed_resources)
         return rest_api_id, self._aws_client.region_name, api_gateway_stage
 
     def _deploy_api_to_stage(self, rest_api_id, api_gateway_stage,
-                             deployed_resources):
-        # type: (str, str, Dict[str, Any]) -> None
+                             minimum_compression_size, deployed_resources):
+        # type: (str, str, int, Dict[str, Any]) -> None
         self._ui.write("Deploying to API Gateway stage: %s\n"
                        % api_gateway_stage)
         LOGGER.debug("Deploying rest API %s to stage %s",
@@ -848,6 +865,12 @@ class APIGatewayDeployer(object):
             'api_handler_arn'].split(':')
         function_name = api_handler_arn_parts[-1]
         account_id = api_handler_arn_parts[4]
+        self._aws_client.update_rest_api(
+            rest_api_id,
+            [{'op': 'replace',
+              'path': '/minimumCompressionSize',
+              'value': str(minimum_compression_size) if
+              minimum_compression_size is not None else ''}])
         self._aws_client.add_permission_for_apigateway_if_needed(
             function_name,
             self._aws_client.region_name,

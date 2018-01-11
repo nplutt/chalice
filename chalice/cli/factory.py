@@ -109,7 +109,6 @@ class CLIFactory(object):
         except ValueError as err:
             raise RuntimeError("Unable to load the project config file: %s"
                                % err)
-
         self._validate_config_from_disk(config_from_disk)
         app_obj = self.load_chalice_app()
         user_provided_params['chalice_app'] = app_obj
