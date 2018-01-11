@@ -202,6 +202,18 @@ class Config(object):
                                   varies_per_chalice_stage=True)
 
     @property
+    def domain_name(self):
+        # type: () -> str
+        return self._chain_lookup('domain_name',
+                                  varies_per_chalice_stage=True)
+
+    @property
+    def base_path(self):
+        # type: () -> str
+        return self._chain_lookup('base_path',
+                                  varies_per_chalice_stage=True)
+
+    @property
     def iam_policy_file(self):
         # type: () -> str
         return self._chain_lookup('iam_policy_file',
@@ -315,8 +327,9 @@ class Config(object):
 class DeployedResources(object):
     def __init__(self, backend, api_handler_arn,
                  api_handler_name, rest_api_id, api_gateway_stage,
-                 region, chalice_version, lambda_functions):
-        # type: (str, str, str, str, str, str, str, StrMap) -> None
+                 region, chalice_version, domain_name, base_path,
+                 lambda_functions):
+        # type: (str, str, str, str, str, str, str, str, str, StrMap) -> None
         self.backend = backend
         self.api_handler_arn = api_handler_arn
         self.api_handler_name = api_handler_name
@@ -324,6 +337,8 @@ class DeployedResources(object):
         self.api_gateway_stage = api_gateway_stage
         self.region = region
         self.chalice_version = chalice_version
+        self.domain_name = domain_name
+        self.base_path = base_path
         self.lambda_functions = lambda_functions
         self._fixup_lambda_functions_if_needed()
 
@@ -356,6 +371,8 @@ class DeployedResources(object):
             data['api_gateway_stage'],
             data['region'],
             data['chalice_version'],
+            data.get('domain_name'),
+            data.get('base_path'),
             # Versions prior to 0.10.0 did not have
             # the 'lambda_functions' key, so we have
             # to default this if it's missing.
