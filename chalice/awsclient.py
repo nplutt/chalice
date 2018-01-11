@@ -380,6 +380,47 @@ class TypedAWSClient(object):
             stageName=api_gateway_stage,
         )
 
+    def base_path_exists(self, domain_name, base_path):
+        # type: (str, str) -> bool
+        client = self._client('apigateway')
+        try:
+            client.get_base_path_mapping(
+                domainName=domain_name,
+                basePath=base_path
+            )
+            return True
+        except client.exceptions.NotFoundException:
+            return False
+
+    def create_base_path_mapping(self, domain_name, base_path,
+                                 rest_api_id, api_gateway_stage):
+        # type: (str, str, str, str) -> None
+        client = self._client('apigateway')
+        client.create_base_path_mapping(
+            domainName=domain_name,
+            basePath=base_path,
+            restApiId=rest_api_id,
+            stage=api_gateway_stage
+        )
+
+    def update_base_path_mapping(self, domain_name, base_path,
+                                 patch_operations):
+        # type: (str, str, List[Dict[str, str]]) -> None
+        client = self._client('apigateway')
+        client.update_base_path_mapping(
+            domainName=domain_name,
+            basePath=base_path,
+            patchOperations=patch_operations
+        )
+
+    def delete_base_path_mapping(self, domain_name, base_path):
+        # type: (str, str) -> None
+        client = self._client('apigateway')
+        client.delete_base_path_mapping(
+            domainName=domain_name,
+            basePath=base_path
+        )
+
     def add_permission_for_apigateway_if_needed(self, function_name,
                                                 region_name, account_id,
                                                 rest_api_id, random_id):

@@ -392,8 +392,9 @@ class Deployer(object):
             'chalice_version': chalice_version,
         })
         LOGGER.debug("Deploying API Gateway resources.")
-        rest_api_id, region_name, apig_stage = self._apigateway_deploy.deploy(
-            config, existing_resources, deployed_values)
+        rest_api_id, region_name, apig_stage, domain_name, base_path =\
+            self._apigateway_deploy.deploy(config, existing_resources,
+                                           deployed_values)
         LOGGER.debug("Finished deploying API Gateway resources.")
         self._ui.write(
             "https://{api_id}.execute-api.{region}.amazonaws.com/{stage}/\n"
@@ -403,6 +404,8 @@ class Deployer(object):
             'rest_api_id': rest_api_id,
             'api_gateway_stage': apig_stage,
             'region': region_name,
+            'domain_name': domain_name,
+            'base_path': base_path
         })
         LOGGER.debug("Final deployed values: %s", deployed_values)
         return {
@@ -797,14 +800,21 @@ class APIGatewayDeployer(object):
     def delete(self, existing_resources):
         # type: (DeployedResources) -> None
         rest_api_id = existing_resources.rest_api_id
+        domain_name = existing_resources.domain_name
+        base_path = existing_resources.base_path
         self._ui.write('Deleting rest API %s\n' % rest_api_id)
+        try:
+            self._aws_client.delete_base_path_mapping(
+                domain_name, base_path)
+        except ResourceDoesNotExistError:
+            self._ui.write('No base path of %s found.\n' % base_path)
         try:
             self._aws_client.delete_rest_api(rest_api_id)
         except ResourceDoesNotExistError as e:
             self._ui.write('No rest API with id %s found.\n' % e)
 
     def deploy(self, config, existing_resources, deployed_resources):
-        # type: (Config, OPT_RESOURCES, Dict[str, Any]) -> Tuple[str, str, str]
+        # type: (Config, OPT_RESOURCES, Dict[str, Any]) -> Tuple[str, str, str, str, str]
         if existing_resources is not None and \
                 self._aws_client.rest_api_exists(
                     existing_resources.rest_api_id):
@@ -817,7 +827,7 @@ class APIGatewayDeployer(object):
         return self._first_time_deploy(config, deployed_resources)
 
     def _first_time_deploy(self, config, deployed_resources):
-        # type: (Config, Dict[str, Any]) -> Tuple[str, str, str]
+        # type: (Config, Dict[str, Any]) -> Tuple[str, str, str, str, str]
         generator = SwaggerGenerator(self._aws_client.region_name,
                                      deployed_resources)
         LOGGER.debug("Generating swagger document for rest API.")
@@ -829,28 +839,31 @@ class APIGatewayDeployer(object):
         # for each rest API, but that would require injecting chalice stage
         # information into the swagger generator.
         rest_api_id = self._aws_client.import_rest_api(swagger_doc)
-        api_gateway_stage = config.api_gateway_stage
-        self._deploy_api_to_stage(rest_api_id, api_gateway_stage,
+        self._deploy_api_to_stage(rest_api_id, config,
                                   deployed_resources)
-        return rest_api_id, self._aws_client.region_name, api_gateway_stage
+        return rest_api_id, self._aws_client.region_name, \
+               config.api_gateway_stage, config.domain_name, \
+               config.base_path
 
     def _create_resources_for_api(self, config, rest_api_id,
                                   deployed_resources):
-        # type: (Config, str, Dict[str, Any]) -> Tuple[str, str, str]
+        # type: (Config, str, Dict[str, Any]) -> Tuple[str, str, str, str, str]
         generator = SwaggerGenerator(self._aws_client.region_name,
                                      deployed_resources)
         LOGGER.debug("Generating swagger document for rest API.")
         swagger_doc = generator.generate_swagger(config.chalice_app)
         self._aws_client.update_api_from_swagger(rest_api_id, swagger_doc)
-        api_gateway_stage = config.api_gateway_stage
-        self._deploy_api_to_stage(
-            rest_api_id, api_gateway_stage,
-            deployed_resources)
-        return rest_api_id, self._aws_client.region_name, api_gateway_stage
+        self._deploy_api_to_stage(rest_api_id, config,
+                                  deployed_resources)
+        return rest_api_id, self._aws_client.region_name, \
+               config.api_gateway_stage, config.domain_name, \
+               config.base_path
 
-    def _deploy_api_to_stage(self, rest_api_id, api_gateway_stage,
-                             deployed_resources):
-        # type: (str, str, Dict[str, Any]) -> None
+    def _deploy_api_to_stage(self, rest_api_id, config, deployed_resources):
+        # type: (str, Config, Dict[str, Any]) -> None
+        api_gateway_stage = config.api_gateway_stage
+        domain_name = config.domain_name
+        base_path = config.base_path
         self._ui.write("Deploying to API Gateway stage: %s\n"
                        % api_gateway_stage)
         LOGGER.debug("Deploying rest API %s to stage %s",
@@ -874,22 +887,25 @@ class APIGatewayDeployer(object):
                     self._aws_client.add_permission_for_authorizer(
                         rest_api_id, function['arn'], str(uuid.uuid4()))
 
+        if domain_name and base_path:
+            self._create_base_path_mapping(
+                rest_api_id, api_gateway_stage, domain_name, base_path)
+
     def _create_base_path_mapping(self, rest_api_id, api_gateway_stage,
                                   domain_name, base_path):
         # type: (str, str, str, str) -> None
-        # Check if base path exists
-        # if base path:
-        #    self._aws_client.update_base_path(
-        #        domain_name,
-        #        base_path,
-        #        rest_api_id,
-        #        api_gateway_stage)
-        # else:
-        #    self._aws_client.create_base_path(
-        #        domain_name,
-        #        base_path,
-        #        rest_api_id,
-        #        api_gateway_stage)
+        if self._aws_client.base_path_exists(domain_name, base_path):
+            patch_operations = [{
+                'op': 'replace',
+                'path': '/restapiId',
+                'value': rest_api_id
+            }]
+            self._aws_client.update_base_path_mapping(
+                domain_name, base_path, patch_operations)
+        else:
+            self._aws_client.create_base_path_mapping(
+                domain_name, base_path, rest_api_id, api_gateway_stage)
+
 
 class ApplicationPolicyHandler(object):
     """Manages the IAM policy for an application.
