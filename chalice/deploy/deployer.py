@@ -84,6 +84,7 @@ def validate_configuration(config):
     validate_routes(routes)
     validate_route_content_types(routes, config.chalice_app.api.binary_types)
     _validate_manage_iam_role(config)
+    validate_custom_domain(config)
     validate_python_version(config)
     validate_unique_function_names(config)
 
@@ -193,6 +194,17 @@ def _validate_manage_iam_role(config):
                 "When 'manage_iam_role' is set to false, you "
                 "must provide an 'iam_role_arn' in config.json."
             )
+
+
+def validate_custom_domain(config):
+    # type: (Config) -> None
+    if config.domain_name and not config.base_path:
+            raise ValueError("If 'domain_name' is set then "
+                             "'base_path' must also be set.")
+
+    if not config.domain_name and config.base_path:
+            raise ValueError("If 'base_path' is set then "
+                             "'domain_name' must also be set.")
 
 
 def validate_unique_function_names(config):
@@ -862,6 +874,22 @@ class APIGatewayDeployer(object):
                     self._aws_client.add_permission_for_authorizer(
                         rest_api_id, function['arn'], str(uuid.uuid4()))
 
+    def _create_base_path_mapping(self, rest_api_id, api_gateway_stage,
+                                  domain_name, base_path):
+        # type: (str, str, str, str) -> None
+        # Check if base path exists
+        # if base path:
+        #    self._aws_client.update_base_path(
+        #        domain_name,
+        #        base_path,
+        #        rest_api_id,
+        #        api_gateway_stage)
+        # else:
+        #    self._aws_client.create_base_path(
+        #        domain_name,
+        #        base_path,
+        #        rest_api_id,
+        #        api_gateway_stage)
 
 class ApplicationPolicyHandler(object):
     """Manages the IAM policy for an application.

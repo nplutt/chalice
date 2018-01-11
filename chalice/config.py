@@ -196,6 +196,18 @@ class Config(object):
                                   varies_per_chalice_stage=True)
 
     @property
+    def domain_name(self):
+        # type: () -> str
+        return self._chain_lookup('domain_name',
+                                  varies_per_chalice_stage=True)
+
+    @property
+    def base_path(self):
+        # type: () -> str
+        return self._chain_lookup('base_path',
+                                  varies_per_chalice_stage=True)
+
+    @property
     def iam_policy_file(self):
         # type: () -> str
         return self._chain_lookup('iam_policy_file',
