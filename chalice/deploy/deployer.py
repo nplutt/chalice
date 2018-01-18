@@ -895,11 +895,10 @@ class APIGatewayDeployer(object):
                                   domain_name, base_path):
         # type: (str, str, str, str) -> None
         if self._aws_client.base_path_exists(domain_name, base_path):
-            patch_operations = [{
-                'op': 'replace',
-                'path': '/restapiId',
-                'value': rest_api_id
-            }]
+            patch_operations = [
+                {'op': 'replace', 'path': '/restapiId', 'value': rest_api_id},
+                {'op': 'replace', 'path': '/stage', ''}
+            ]
             self._aws_client.update_base_path_mapping(
                 domain_name, base_path, patch_operations)
         else:
