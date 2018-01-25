@@ -79,8 +79,7 @@ class SAMTemplateGenerator(object):
         resources = {
             'APIHandler': self._generate_serverless_function(
                 config, code_uri, 'app.app', 'api'),
-            'RestAPI': self._generate_rest_api(
-                config.chalice_app, config.api_gateway_stage),
+            'RestAPI': self._generate_rest_api(config),
         }
         self._add_auth_handlers(resources, config, code_uri)
         template['Resources'] = resources
@@ -171,11 +170,12 @@ class SAMTemplateGenerator(object):
         # type: (Chalice) -> Dict[str, Any]
         return {}
 
-    def _generate_rest_api(self, app, api_gateway_stage):
-        # type: (Chalice, str) -> Dict[str, Any]
-        swagger_definition = self._swagger_generator.generate_swagger(app)
+    def _generate_rest_api(self, config):
+        # type: (Config, str) -> Dict[str, Any]
+        swagger_definition = self._swagger_generator.generate_swagger(
+            config.chalice_app, config.minimum_compression_size)
         properties = {
-            'StageName': api_gateway_stage,
+            'StageName': config.api_gateway_stage,
             'DefinitionBody': swagger_definition,
         }
         return {

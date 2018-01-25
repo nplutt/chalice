@@ -823,7 +823,8 @@ class APIGatewayDeployer(object):
         generator = SwaggerGenerator(self._aws_client.region_name,
                                      deployed_resources)
         LOGGER.debug("Generating swagger document for rest API.")
-        swagger_doc = generator.generate_swagger(config.chalice_app)
+        swagger_doc = generator.generate_swagger(
+            config.chalice_app, config.minimum_compression_size)
         # The swagger_doc that's generated will contain the "name" which is
         # used to set the name for the restAPI.  API Gateway allows you
         # to have multiple restAPIs with the same name, they'll have
@@ -832,10 +833,8 @@ class APIGatewayDeployer(object):
         # information into the swagger generator.
         rest_api_id = self._aws_client.import_rest_api(swagger_doc)
         api_gateway_stage = config.api_gateway_stage
-        minimum_compression_size = config.minimum_compression_size
-        self._deploy_api_to_stage(
-            rest_api_id, api_gateway_stage,
-            minimum_compression_size, deployed_resources)
+        self._deploy_api_to_stage(rest_api_id, api_gateway_stage,
+                                  deployed_resources)
         return rest_api_id, self._aws_client.region_name, api_gateway_stage
 
     def _create_resources_for_api(self, config, rest_api_id,
@@ -844,18 +843,17 @@ class APIGatewayDeployer(object):
         generator = SwaggerGenerator(self._aws_client.region_name,
                                      deployed_resources)
         LOGGER.debug("Generating swagger document for rest API.")
-        swagger_doc = generator.generate_swagger(config.chalice_app)
+        swagger_doc = generator.generate_swagger(
+            config.chalice_app, config.minimum_compression_size)
         self._aws_client.update_api_from_swagger(rest_api_id, swagger_doc)
         api_gateway_stage = config.api_gateway_stage
-        minimum_compression_size = config.minimum_compression_size
-        self._deploy_api_to_stage(
-            rest_api_id, api_gateway_stage,
-            minimum_compression_size, deployed_resources)
+        self._deploy_api_to_stage(rest_api_id, api_gateway_stage,
+                                  deployed_resources)
         return rest_api_id, self._aws_client.region_name, api_gateway_stage
 
     def _deploy_api_to_stage(self, rest_api_id, api_gateway_stage,
-                             minimum_compression_size, deployed_resources):
-        # type: (str, str, int, Dict[str, Any]) -> None
+                             deployed_resources):
+        # type: (str, str, Dict[str, Any]) -> None
         self._ui.write("Deploying to API Gateway stage: %s\n"
                        % api_gateway_stage)
         LOGGER.debug("Deploying rest API %s to stage %s",
@@ -865,12 +863,6 @@ class APIGatewayDeployer(object):
             'api_handler_arn'].split(':')
         function_name = api_handler_arn_parts[-1]
         account_id = api_handler_arn_parts[4]
-        self._aws_client.update_rest_api(
-            rest_api_id,
-            [{'op': 'replace',
-              'path': '/minimumCompressionSize',
-              'value': str(minimum_compression_size) if
-              minimum_compression_size is not None else ''}])
         self._aws_client.add_permission_for_apigateway_if_needed(
             function_name,
             self._aws_client.region_name,

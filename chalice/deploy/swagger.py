@@ -30,17 +30,24 @@ class SwaggerGenerator(object):
         self._region = region
         self._deployed_resources = deployed_resources
 
-    def generate_swagger(self, app):
-        # type: (Chalice) -> Dict[str, Any]
+    def generate_swagger(self, app, minimum_compression_size=None):
+        # type: (Chalice, int) -> Dict[str, Any]
         api = copy.deepcopy(self._BASE_TEMPLATE)
         api['info']['title'] = app.app_name
         self._add_binary_types(api, app)
         self._add_route_paths(api, app)
+        import pdb; pdb.set_trace()
+        if minimum_compression_size is not None:
+            self._add_compression(api, minimum_compression_size)
         return api
 
     def _add_binary_types(self, api, app):
         # type: (Dict[str, Any], Chalice) -> None
         api['x-amazon-apigateway-binary-media-types'] = app.api.binary_types
+
+    def _add_compression(self, api, minimum_compression_size):
+        # type: (Dict[str, Any], int) -> None
+        api['x-amazon-apigateway-minimum-compression-size'] = minimum_compression_size
 
     def _add_route_paths(self, api, app):
         # type: (Dict[str, Any], Chalice) -> None
